@@ -1,43 +1,33 @@
 open Farmer
 open Farmer.Builders
-open Farmer.Deploy
-open System
 open Farmer.ContainerGroup
 
 
-let storage = storageAccount {
-    name "tinkerpopstorage"
-    sku Storage.Standard_LRS
-    add_file_share_with_quota "tinkerpop-share" 10<Gb>
-}
-
-let tinkerpopContainer = 
+let janusContainer = 
     containerInstance {
-        name "tinkerpop"
-        image "tinkerpop/gremlin-server:3.4.8"
+        name "janusGraph"
+        image "janusgraph/janusgraph:0.5.2"
         add_public_ports [ 8182us ]
-        memory 1.0<Gb>
-        cpu_cores 1
+        memory 16.0<Gb>
+        cpu_cores 4
         env_vars [
+            env_var "JAVA_OPTS" "-Xmx16g"
         ]
-        add_volume_mount "tinkerpop-db" "/var/lib/tinkerpop"
     }
 
-let tinkerpop = containerGroup {
-    name "tinkerpop"
+let janusgraph = containerGroup {
+    name "janusgraph"
     operating_system Linux
     restart_policy AlwaysRestart
-    add_instances [ tinkerpopContainer ]
-    add_volumes [
-        volume_mount.azureFile "tinkerpop-db" "tinkerpop-share" storage.Name.ResourceName.Value
-    ]
+    public_dns "janusgraph" [ TCP, 8182us ]
+    add_instances [ janusContainer ]
 }
 
 // Add resources to the ARM deployment using the add_resource keyword.
 // See https://compositionalit.github.io/farmer/api-overview/resources/arm/ for more details.
 let deployment = arm {
     location Location.WestEurope
-    add_resources [ storage; tinkerpop ]
+    add_resources [ janusgraph ]
 }
 
 printf "Generating ARM template..."
